@@ -41,7 +41,23 @@ export type PiContext = {
   }
 }
 
-/** Tool-call handlers additionally receive the session manager. */
+/** The slice of a model response the validator reads. */
+export type PiAssistantMessage = {
+  content: readonly unknown[]
+}
+
+/** Provider-neutral completion, as exposed on pi's model registry. */
+export type PiModelRegistry = {
+  complete(
+    model: unknown,
+    context: unknown,
+    options?: unknown,
+  ): Promise<PiAssistantMessage>
+}
+
+/** Tool-call handlers additionally receive the session and model access. */
 export type PiToolCallContext = PiContext & {
   sessionManager: { getBranch(): unknown[] }
+  model: unknown
+  modelRegistry: PiModelRegistry
 }

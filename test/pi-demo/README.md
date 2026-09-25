@@ -48,6 +48,15 @@ existing file, not `write`).
 - ask it to run `git status` -> allowed
 - ask it to run `git log` again -> allowed, because the session now shows `git status`
 
+## Test the AI validator (`enforceTdd`)
+
+The config scopes `enforceTdd` to `impl/**`, so only writes under `test/pi-demo/impl/` reach the
+AI validator, which uses the current pi session model.
+
+- ask pi to create `test/pi-demo/impl/thing.ts` with a function -> blocked with a TDD reason
+  (no failing test observed)
+- the full cycle is allowed: write a failing test, run it, then implement
+
 ## Missing config
 
 Run pi from a directory with no `probity.config.*` and `/probity on` reports the existing
