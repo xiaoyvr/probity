@@ -6,9 +6,10 @@ import { piEditContent, type PiEditInput } from './pi-edit.js'
 /**
  * Translate a pi tool-call event into canonical Actions. Tools Probity
  * does not model (read, grep, find, ls, custom) yield no actions; the
- * caller passes them through. `write` carries its content directly;
- * `edit` carries a diff that is reconstructed through pi's own edit
- * pipeline. A malformed known tool throws so the caller can fail closed.
+ * caller passes them through. `bash` carries a command, `write` carries
+ * its content directly, and `edit` carries a diff that is reconstructed
+ * through pi's own edit pipeline. A malformed known tool throws so the
+ * caller can fail closed.
  */
 export async function toActions(
   event: PiToolCallEvent,
@@ -25,6 +26,13 @@ export async function toActions(
     const input = parseEditInput(event.input)
     const content = await piEditContent(input, cwd)
     return [{ kind: 'write', path: posixAbsolute(cwd, input.path), content }]
+  }
+  if (event.toolName === 'bash') {
+    const { command } = event.input
+    if (typeof command !== 'string') {
+      throw new Error('bash tool call is missing a string command')
+    }
+    return [{ kind: 'command', command }]
   }
   return []
 }
