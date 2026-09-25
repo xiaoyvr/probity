@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it, vi, onTestFinished } from 'vitest'
+import { beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest'
 
 import piExtension from './pi-extension.js'
 import type {
@@ -11,6 +11,11 @@ import type {
   PiToolCallEvent,
   PiToolCallResult,
 } from './vendors/pi/pi-api.js'
+import { piEditContent } from './vendors/pi/pi-edit.js'
+
+vi.mock('./vendors/pi/pi-edit.js', () => ({ piEditContent: vi.fn() }))
+
+const editContent = vi.mocked(piEditContent)
 
 const CONFIG = `import { defineConfig, forbidContentPattern } from '@nizos/probity'
 
@@ -61,6 +66,17 @@ function writeEvent(content: string): PiToolCallEvent {
     toolCallId: 'call_1',
     toolName: 'write',
     input: { path: 'notes.md', content },
+  }
+}
+
+function editEvent(
+  edits: readonly { oldText: string; newText: string }[],
+): PiToolCallEvent {
+  return {
+    type: 'tool_call',
+    toolCallId: 'call_edit',
+    toolName: 'edit',
+    input: { path: 'notes.md', edits },
   }
 }
 
@@ -150,6 +166,10 @@ describe('pi extension /probity command', () => {
 })
 
 describe('pi extension tool_call', () => {
+  beforeEach(() => {
+    editContent.mockReset()
+  })
+
   it('does not evaluate writes while off', async () => {
     const cwd = await projectWithConfig()
     const { runTool } = harness()
@@ -214,5 +234,33 @@ describe('pi extension tool_call', () => {
 
     expect(result).toMatchObject({ block: true })
     expect(result?.reason).toContain('Probity:')
+  })
+
+  it('blocks an edit whose reconstructed content violates a rule', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, runCommand } = harness()
+    await runCommand('on', { cwd })
+    editContent.mockResolvedValue('TODO: later')
+
+    const result = await runTool(
+      editEvent([{ oldText: 'old', newText: 'TODO: later' }]),
+      { cwd },
+    )
+
+    expect(result).toEqual({ block: true, reason: 'Probity: No TODOs' })
+  })
+
+  it('allows an edit whose reconstructed content satisfies the rules', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, runCommand } = harness()
+    await runCommand('on', { cwd })
+    editContent.mockResolvedValue('all clean')
+
+    const result = await runTool(
+      editEvent([{ oldText: 'old', newText: 'clean' }]),
+      { cwd },
+    )
+
+    expect(result).toBeUndefined()
   })
 })
