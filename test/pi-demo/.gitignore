@@ -1,6 +1,0 @@
-# Scratch project: ignore anything pi writes here, keep the fixture.
-*
-!.gitignore
-!probity.config.ts
-!README.md
-!sample.md
