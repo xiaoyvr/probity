@@ -100,17 +100,30 @@ Further reading: [GitHub Copilot's hooks reference](https://docs.github.com/en/c
 
 ## pi
 
-pi integrates through an extension rather than a shell hook. Build Probity from a checkout, then
-either install the local package or load the extension for a single session:
+pi installs extensions as packages, so Probity is installed from npm:
+
+```bash
+pi install npm:@nizos/probity
+```
+
+Pass `-l` to scope the install to the current project (`.pi/settings.json`) instead of your user
+settings (`~/.pi/agent/settings.json`):
+
+```bash
+pi install npm:@nizos/probity -l
+```
+
+To try it for a single session without installing anything, pass the package to `-e`:
+
+```bash
+pi -e npm:@nizos/probity
+```
+
+From a checkout, build first and install the local package:
 
 ```bash
 npm run build
-
-# install the package (reads the `pi` manifest in package.json)
 pi install /path/to/probity
-
-# or load it for one session, without installing
-pi -e /path/to/probity/dist/pi-extension.js
 ```
 
 The extension is off until you turn it on. Inside a pi session:
