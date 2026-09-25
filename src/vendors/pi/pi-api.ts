@@ -16,7 +16,7 @@ export type PiCommandRegistration = {
 
 export type PiToolCallHandler = (
   event: PiToolCallEvent,
-  ctx: PiContext,
+  ctx: PiToolCallContext,
 ) => PiToolCallResult | Promise<PiToolCallResult>
 
 /**
@@ -39,4 +39,9 @@ export type PiContext = {
   ui: {
     notify(message: string, type?: 'info' | 'warning' | 'error'): void
   }
+}
+
+/** Tool-call handlers additionally receive the session manager. */
+export type PiToolCallContext = PiContext & {
+  sessionManager: { getBranch(): unknown[] }
 }
