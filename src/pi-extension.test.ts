@@ -32,6 +32,19 @@ export default defineConfig({
 })
 `
 
+const ENFORCE_CONFIG = `import { defineConfig, enforceTdd } from '@nizos/probity'
+
+export default defineConfig({ rules: [enforceTdd()] })
+`
+
+const AI_OVERRIDE_CONFIG = `import { defineConfig, enforceTdd } from '@nizos/probity'
+
+export default defineConfig({
+  ai: { reason: async () => ({ kind: 'violation', reason: 'from config ai' }) },
+  rules: [enforceTdd()],
+})
+`
+
 type CommandHandler = (args: string, ctx: PiContext) => void | Promise<void>
 type ToolHandler = (
   event: PiToolCallEvent,
@@ -52,6 +65,7 @@ function harness(options: { hasUI?: boolean } = {}) {
   piExtension(pi)
 
   const notify = vi.fn()
+  const complete = vi.fn()
   const context = (
     overrides: Partial<PiToolCallContext>,
   ): PiToolCallContext => ({
@@ -59,11 +73,14 @@ function harness(options: { hasUI?: boolean } = {}) {
     hasUI: options.hasUI ?? true,
     ui: { notify },
     sessionManager: { getBranch: () => [] },
+    model: { id: 'test-model' },
+    modelRegistry: { complete },
     ...overrides,
   })
 
   return {
     notify,
+    complete,
     runCommand: (args: string, overrides: Partial<PiContext> = {}) =>
       Promise.resolve(command?.(args, context(overrides))),
     runTool: (
@@ -136,11 +153,11 @@ function branchWithTestRun(): unknown[] {
   ]
 }
 
-/** A project dir containing a probity.config.ts with a deterministic rule. */
-async function projectWithConfig(): Promise<string> {
+/** A project dir containing a probity.config.ts. Defaults to CONFIG. */
+async function projectWithConfig(config: string = CONFIG): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'probity-pi-config-'))
   onTestFinished(() => rm(dir, { recursive: true, force: true }))
-  await writeFile(path.join(dir, 'probity.config.ts'), CONFIG)
+  await writeFile(path.join(dir, 'probity.config.ts'), config)
   return dir
 }
 
@@ -364,5 +381,44 @@ describe('pi extension tool_call', () => {
     })
 
     expect(result).toBeUndefined()
+  })
+
+  it('blocks a write when the AI validator returns a violation', async () => {
+    const cwd = await projectWithConfig(ENFORCE_CONFIG)
+    const { runTool, runCommand, complete } = harness()
+    await runCommand('on', { cwd })
+    complete.mockResolvedValue({
+      content: [
+        { type: 'text', text: '{"kind":"violation","reason":"not TDD"}' },
+      ],
+    })
+
+    const result = await runTool(writeEvent('export const x = 1'), { cwd })
+
+    expect(result).toEqual({ block: true, reason: 'Probity: not TDD' })
+  })
+
+  it('allows a write when the AI validator returns a pass', async () => {
+    const cwd = await projectWithConfig(ENFORCE_CONFIG)
+    const { runTool, runCommand, complete } = harness()
+    await runCommand('on', { cwd })
+    complete.mockResolvedValue({
+      content: [{ type: 'text', text: '{"kind":"pass","reason":""}' }],
+    })
+
+    const result = await runTool(writeEvent('export const x = 1'), { cwd })
+
+    expect(result).toBeUndefined()
+  })
+
+  it('prefers a config-provided AI validator over the session model', async () => {
+    const cwd = await projectWithConfig(AI_OVERRIDE_CONFIG)
+    const { runTool, runCommand, complete } = harness()
+    await runCommand('on', { cwd })
+
+    const result = await runTool(writeEvent('export const x = 1'), { cwd })
+
+    expect(result).toEqual({ block: true, reason: 'Probity: from config ai' })
+    expect(complete).not.toHaveBeenCalled()
   })
 })

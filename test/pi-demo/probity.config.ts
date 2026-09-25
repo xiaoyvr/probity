@@ -1,5 +1,6 @@
 import {
   defineConfig,
+  enforceTdd,
   forbidCommandPattern,
   forbidContentPattern,
   requireCommand,
@@ -20,5 +21,9 @@ export default defineConfig({
       command: /git status/,
       reason: 'Run git status before git log.',
     }),
+    {
+      files: ['impl/**'],
+      rules: [enforceTdd()],
+    },
   ],
 })

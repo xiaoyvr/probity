@@ -1,7 +1,8 @@
 import { findConfig, loadConfig, type Config } from './config.js'
 import { evaluate } from './engine.js'
-import type { RuleContext } from './rules/contract.js'
+import { buildRuleContext } from './rule-context.js'
 import type { Decision } from './types.js'
+import { piAgent } from './vendors/pi/agent.js'
 import { toCanonical } from './vendors/pi/event.js'
 import { rawEventsFromEntries } from './vendors/pi/transcript.js'
 import type {
@@ -50,12 +51,12 @@ export default function piExtension(pi: PiExtensionAPI): void {
   pi.on('tool_call', async (event, ctx) => {
     if (state.status !== 'on') return undefined
     const { rules } = state.config
-    const rawHistory = () =>
-      Promise.resolve(rawEventsFromEntries(ctx.sessionManager.getBranch()))
-    const ruleContext: RuleContext = {
-      rawHistory,
-      history: async () => (await rawHistory()).map(toCanonical),
-    }
+    const ruleContext = buildRuleContext({
+      agent: state.config.ai ?? piAgent(ctx),
+      rawHistory: () =>
+        Promise.resolve(rawEventsFromEntries(ctx.sessionManager.getBranch())),
+      toCanonical,
+    })
     try {
       for (const action of await toActions(event, ctx.cwd)) {
         const { decision } = await evaluate(action, rules, ruleContext)
