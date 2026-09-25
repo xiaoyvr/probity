@@ -17,6 +17,11 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
+# Nix / direnv
+.direnv/
+result
+result-*
+
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json
