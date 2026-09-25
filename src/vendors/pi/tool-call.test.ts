@@ -22,6 +22,13 @@ const edit = (input: Record<string, unknown>): PiToolCallEvent => ({
   input,
 })
 
+const bash = (input: Record<string, unknown>): PiToolCallEvent => ({
+  type: 'tool_call',
+  toolCallId: 'call_3',
+  toolName: 'bash',
+  input,
+})
+
 describe('toActions (pi)', () => {
   beforeEach(() => {
     editContent.mockReset()
@@ -53,18 +60,28 @@ describe('toActions (pi)', () => {
     ])
   })
 
-  it('yields no actions for a tool Probity does not model yet', async () => {
+  it('yields no actions for a tool Probity does not model', async () => {
     const actions = await toActions(
       {
         type: 'tool_call',
-        toolCallId: 'call_3',
-        toolName: 'bash',
-        input: { command: 'ls' },
+        toolCallId: 'call_4',
+        toolName: 'read',
+        input: { path: 'a.ts' },
       },
       '/repo',
     )
 
     expect(actions).toEqual([])
+  })
+
+  it('maps bash to a command action', async () => {
+    const actions = await toActions(bash({ command: 'npm test' }), '/repo')
+
+    expect(actions).toEqual([{ kind: 'command', command: 'npm test' }])
+  })
+
+  it('fails closed on a malformed bash payload', async () => {
+    await expect(toActions(bash({}), '/repo')).rejects.toThrow()
   })
 
   it('fails closed on a malformed write payload', async () => {

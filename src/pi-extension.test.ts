@@ -17,10 +17,13 @@ vi.mock('./vendors/pi/pi-edit.js', () => ({ piEditContent: vi.fn() }))
 
 const editContent = vi.mocked(piEditContent)
 
-const CONFIG = `import { defineConfig, forbidContentPattern } from '@nizos/probity'
+const CONFIG = `import { defineConfig, forbidCommandPattern, forbidContentPattern } from '@nizos/probity'
 
 export default defineConfig({
-  rules: [forbidContentPattern({ match: 'TODO', reason: 'No TODOs' })],
+  rules: [
+    forbidContentPattern({ match: 'TODO', reason: 'No TODOs' }),
+    forbidCommandPattern({ match: /echo/, reason: 'No echo' }),
+  ],
 })
 `
 
@@ -77,6 +80,15 @@ function editEvent(
     toolCallId: 'call_edit',
     toolName: 'edit',
     input: { path: 'notes.md', edits },
+  }
+}
+
+function bashEvent(command: string): PiToolCallEvent {
+  return {
+    type: 'tool_call',
+    toolCallId: 'call_bash',
+    toolName: 'bash',
+    input: { command },
   }
 }
 
@@ -260,6 +272,26 @@ describe('pi extension tool_call', () => {
       editEvent([{ oldText: 'old', newText: 'clean' }]),
       { cwd },
     )
+
+    expect(result).toBeUndefined()
+  })
+
+  it('blocks a command that violates a rule while on', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, runCommand } = harness()
+    await runCommand('on', { cwd })
+
+    const result = await runTool(bashEvent('echo hi'), { cwd })
+
+    expect(result).toEqual({ block: true, reason: 'Probity: No echo' })
+  })
+
+  it('allows a command that satisfies the rules while on', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, runCommand } = harness()
+    await runCommand('on', { cwd })
+
+    const result = await runTool(bashEvent('ls'), { cwd })
 
     expect(result).toBeUndefined()
   })
