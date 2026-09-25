@@ -22,8 +22,8 @@ export async function piEditContent(
   let captured: string | undefined
   const definition = createEditToolDefinition(cwd, {
     operations: {
-      access: (filePath) => access(filePath),
-      readFile: (filePath) => readFile(filePath),
+      access,
+      readFile,
       writeFile: (_filePath, content) => {
         captured = content
         return Promise.resolve()
