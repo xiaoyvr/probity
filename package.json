@@ -38,6 +38,11 @@
       "default": "./dist/rules/index.js"
     }
   },
+  "pi": {
+    "extensions": [
+      "./dist/pi-extension.js"
+    ]
+  },
   "files": [
     "dist"
   ],
