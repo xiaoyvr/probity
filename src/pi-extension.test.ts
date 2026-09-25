@@ -8,6 +8,7 @@ import piExtension from './pi-extension.js'
 import type {
   PiContext,
   PiExtensionAPI,
+  PiToolCallContext,
   PiToolCallEvent,
   PiToolCallResult,
 } from './vendors/pi/pi-api.js'
@@ -17,12 +18,16 @@ vi.mock('./vendors/pi/pi-edit.js', () => ({ piEditContent: vi.fn() }))
 
 const editContent = vi.mocked(piEditContent)
 
-const CONFIG = `import { defineConfig, forbidCommandPattern, forbidContentPattern } from '@nizos/probity'
+const CONFIG = `import { defineConfig, forbidCommandPattern, forbidContentPattern, requireCommand } from '@nizos/probity'
 
 export default defineConfig({
   rules: [
     forbidContentPattern({ match: 'TODO', reason: 'No TODOs' }),
     forbidCommandPattern({ match: /echo/, reason: 'No echo' }),
+    requireCommand({
+      before: { kind: 'command', match: /git commit/ },
+      command: /npm test/,
+    }),
   ],
 })
 `
@@ -30,7 +35,7 @@ export default defineConfig({
 type CommandHandler = (args: string, ctx: PiContext) => void | Promise<void>
 type ToolHandler = (
   event: PiToolCallEvent,
-  ctx: PiContext,
+  ctx: PiToolCallContext,
 ) => PiToolCallResult | Promise<PiToolCallResult>
 
 function harness(options: { hasUI?: boolean } = {}) {
@@ -47,10 +52,13 @@ function harness(options: { hasUI?: boolean } = {}) {
   piExtension(pi)
 
   const notify = vi.fn()
-  const context = (overrides: Partial<PiContext>): PiContext => ({
+  const context = (
+    overrides: Partial<PiToolCallContext>,
+  ): PiToolCallContext => ({
     cwd: process.cwd(),
     hasUI: options.hasUI ?? true,
     ui: { notify },
+    sessionManager: { getBranch: () => [] },
     ...overrides,
   })
 
@@ -58,8 +66,10 @@ function harness(options: { hasUI?: boolean } = {}) {
     notify,
     runCommand: (args: string, overrides: Partial<PiContext> = {}) =>
       Promise.resolve(command?.(args, context(overrides))),
-    runTool: (event: PiToolCallEvent, overrides: Partial<PiContext> = {}) =>
-      Promise.resolve(tool?.(event, context(overrides))),
+    runTool: (
+      event: PiToolCallEvent,
+      overrides: Partial<PiToolCallContext> = {},
+    ) => Promise.resolve(tool?.(event, context(overrides))),
   }
 }
 
@@ -90,6 +100,40 @@ function bashEvent(command: string): PiToolCallEvent {
     toolName: 'bash',
     input: { command },
   }
+}
+
+/** A branch that ran `npm test` via bash, as pi would expose it. */
+function branchWithTestRun(): unknown[] {
+  return [
+    {
+      type: 'message',
+      id: 'a',
+      parentId: null,
+      timestamp: '2026-09-25T00:00:00.000Z',
+      message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'toolCall',
+            id: 'call_test',
+            name: 'bash',
+            arguments: { command: 'npm test' },
+          },
+        ],
+      },
+    },
+    {
+      type: 'message',
+      id: 'b',
+      parentId: 'a',
+      timestamp: '2026-09-25T00:00:01.000Z',
+      message: {
+        role: 'toolResult',
+        toolCallId: 'call_test',
+        content: [{ type: 'text', text: 'PASS' }],
+      },
+    },
+  ]
 }
 
 /** A project dir containing a probity.config.ts with a deterministic rule. */
@@ -292,6 +336,32 @@ describe('pi extension tool_call', () => {
     await runCommand('on', { cwd })
 
     const result = await runTool(bashEvent('ls'), { cwd })
+
+    expect(result).toBeUndefined()
+  })
+
+  it('blocks a gated command when session history lacks the prerequisite', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, runCommand } = harness()
+    await runCommand('on', { cwd })
+
+    const result = await runTool(bashEvent('git commit -m x'), {
+      cwd,
+      sessionManager: { getBranch: () => [] },
+    })
+
+    expect(result).toMatchObject({ block: true })
+  })
+
+  it('allows a gated command when session history shows the prerequisite ran', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, runCommand } = harness()
+    await runCommand('on', { cwd })
+
+    const result = await runTool(bashEvent('git commit -m x'), {
+      cwd,
+      sessionManager: { getBranch: () => branchWithTestRun() },
+    })
 
     expect(result).toBeUndefined()
   })

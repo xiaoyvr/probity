@@ -11,8 +11,8 @@ cd test/pi-demo
 pi -e "$(git rev-parse --show-toplevel)/dist/pi-extension.js"
 ```
 
-The config here (`probity.config.ts`) forbids the string `TODO` in any write or edit, and forbids
-`echo` shell commands.
+The config here (`probity.config.ts`) forbids the string `TODO` in any write or edit, forbids
+`echo` shell commands, and gates `git log` on a prior `git status`.
 
 ## Test the `write` path
 
@@ -40,6 +40,13 @@ existing file, not `write`).
 - with Probity on, ask it to run `echo hello > out.txt` -> blocked
 - ask it to run `ls` -> allowed
 - `/probity off` -> the `echo` command is allowed again
+
+## Test the history path (`requireCommand`)
+
+- with Probity on, ask it to run `git log` -> blocked (`requireCommand` sees no prior
+  `git status` in the session)
+- ask it to run `git status` -> allowed
+- ask it to run `git log` again -> allowed, because the session now shows `git status`
 
 ## Missing config
 
