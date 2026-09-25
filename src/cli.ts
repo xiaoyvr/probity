@@ -14,10 +14,7 @@ import {
 } from './config.js'
 import { evaluate } from './engine.js'
 import { vendors, type Vendor, type VendorEntry } from './registry.js'
-import type { RuleContext } from './rules/contract.js'
-import { safeReadCapped } from './utils/safe-read.js'
-
-const MAX_FILE_BYTES = 1024 * 1024
+import { buildRuleContext } from './rule-context.js'
 
 export type { Vendor } from './registry.js'
 
@@ -63,11 +60,11 @@ async function dispatch(
   const trace: TraceEntry[] = []
   for (const action of parsed.actions) {
     const collector = createAgentCallCollector(agent)
-    const ctx = buildRuleContext(
-      parsed.rawHistory,
-      entry.toCanonical,
-      collector.agent,
-    )
+    const ctx = buildRuleContext({
+      agent: collector.agent,
+      rawHistory: parsed.rawHistory,
+      toCanonical: entry.toCanonical,
+    })
     const outcome = await evaluate(action, rules, ctx, collector.hooks)
     trace.push(...collector.enrichTrace(outcome.trace))
     if (outcome.decision.kind === 'block') {
@@ -97,23 +94,6 @@ function respondParseFailed(entry: VendorEntry, reason: string): RunResult {
       reason: `invalid hook payload: ${reason}`,
     }),
     trace: [{ kind: 'parse-failed', reason }],
-  }
-}
-
-function buildRuleContext(
-  rawHistory: (() => Promise<RawSessionEvent[]>) | undefined,
-  toCanonical: VendorEntry['toCanonical'],
-  agent: Agent,
-): RuleContext {
-  const history =
-    rawHistory && toCanonical
-      ? async () => (await rawHistory()).map(toCanonical)
-      : undefined
-  return {
-    agent,
-    ...(rawHistory && { rawHistory }),
-    ...(history && { history }),
-    readFile: (path) => safeReadCapped(path, { maxBytes: MAX_FILE_BYTES }),
   }
 }
 
