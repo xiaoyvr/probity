@@ -131,6 +131,11 @@ The extension is off until you turn it on. Inside a pi session:
 - `/probity on` — discover `probity.config.{ts,mts,js,mjs}` from the working directory and start
   enforcing. If no config is found, Probity reports the error and stays off.
 - `/probity off` — stop enforcing.
+- `/probity trace` — toggle the evaluation trace. Available only while Probity is on; off by
+  default and reset when Probity is turned off. While tracing, each evaluated tool call appends a
+  transcript entry listing the rules that ran, each rule's pass or violation result, and how long
+  it took. Expand the entry to see every AI validator call with its verdict, model, and token
+  usage. Trace entries are TUI-only and are never sent to the model.
 - `/probity` — report the current state.
 
 While enabled, pi's `write`, `edit`, and `bash` tool calls are evaluated before they run. A rule
