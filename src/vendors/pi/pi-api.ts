@@ -46,6 +46,16 @@ export type PiContext = {
 /** The slice of a model response the validator reads. */
 export type PiAssistantMessage = {
   content: readonly unknown[]
+  model?: string
+  usage?: PiUsage
+}
+
+/** The slice of a model response's token accounting Probity reads. */
+export type PiUsage = {
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite?: number
 }
 
 /** Provider-neutral completion, as exposed on pi's model registry. */

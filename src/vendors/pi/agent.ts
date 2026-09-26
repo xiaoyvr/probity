@@ -1,6 +1,6 @@
 import type { Agent } from '../../types.js'
 import { toVerdict } from '../to-verdict.js'
-import type { PiModelRegistry } from './pi-api.js'
+import type { PiAssistantMessage, PiModelRegistry } from './pi-api.js'
 
 /**
  * Build the AI validator for a pi session. It reuses the session's
@@ -29,9 +29,41 @@ export function piAgent(options: {
             },
           ],
         })
-        return { text: textOf(response.content) }
+        const meta = buildMeta(response)
+        return meta
+          ? { text: textOf(response.content), meta }
+          : { text: textOf(response.content) }
       }),
   }
+}
+
+type PiMeta = {
+  model?: string
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+}
+
+/**
+ * Vendor telemetry from the completion: which model answered and what
+ * the response cost in tokens. Omitted fields are the ones the SDK did
+ * not report; no meta at all when it reported nothing.
+ */
+function buildMeta(response: PiAssistantMessage): PiMeta | undefined {
+  const meta: PiMeta = {}
+  if (typeof response.model === 'string') meta.model = response.model
+  const usage = response.usage
+  if (usage) {
+    if (typeof usage.input === 'number') meta.inputTokens = usage.input
+    if (typeof usage.output === 'number') meta.outputTokens = usage.output
+    if (typeof usage.cacheRead === 'number')
+      meta.cacheReadTokens = usage.cacheRead
+    if (typeof usage.cacheWrite === 'number') {
+      meta.cacheWriteTokens = usage.cacheWrite
+    }
+  }
+  return Object.keys(meta).length > 0 ? meta : undefined
 }
 
 function textOf(content: readonly unknown[]): string {
