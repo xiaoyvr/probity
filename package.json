@@ -11,6 +11,7 @@
   "bugs": "https://github.com/nizos/probity/issues",
   "homepage": "https://github.com/nizos/probity#readme",
   "keywords": [
+    "pi-package",
     "claude-code",
     "codex",
     "github-copilot",
@@ -41,7 +42,7 @@
   },
   "pi": {
     "extensions": [
-      "./dist/pi-extension.js"
+      "./dist/pi-ext-probity.js"
     ]
   },
   "files": [
