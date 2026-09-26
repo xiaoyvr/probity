@@ -45,6 +45,50 @@ describe('piAgent', () => {
     })
   })
 
+  it('attaches the model and token usage as meta', async () => {
+    complete.mockResolvedValue({
+      content: [{ type: 'text', text: '{"kind":"pass","reason":""}' }],
+      model: 'claude-sonnet-4',
+      usage: { input: 100, output: 20, cacheRead: 5, cacheWrite: 3 },
+    })
+    const agent = piAgent({ model: { id: 'm' }, modelRegistry })
+
+    const verdict = await agent.reason('prompt')
+
+    expect(verdict).toEqual({
+      kind: 'pass',
+      reason: '',
+      meta: {
+        model: 'claude-sonnet-4',
+        inputTokens: 100,
+        outputTokens: 20,
+        cacheReadTokens: 5,
+        cacheWriteTokens: 3,
+      },
+    })
+  })
+
+  it('reports only the usage fields the response carries', async () => {
+    complete.mockResolvedValue({
+      content: [{ type: 'text', text: '{"kind":"pass","reason":""}' }],
+      usage: { output: 42 },
+    })
+    const agent = piAgent({ model: { id: 'm' }, modelRegistry })
+
+    const verdict = await agent.reason('prompt')
+
+    expect(verdict.meta).toEqual({ outputTokens: 42 })
+  })
+
+  it('omits meta when the response carries no usage or model', async () => {
+    respond('{"kind":"pass","reason":""}')
+    const agent = piAgent({ model: { id: 'm' }, modelRegistry })
+
+    const verdict = await agent.reason('prompt')
+
+    expect(verdict.meta).toBeUndefined()
+  })
+
   it('fails closed when there is no active model', async () => {
     const agent = piAgent({ model: undefined, modelRegistry })
 
