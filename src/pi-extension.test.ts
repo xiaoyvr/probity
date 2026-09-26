@@ -349,6 +349,25 @@ describe('pi extension tracing', () => {
     expect(appendEntry).not.toHaveBeenCalled()
   })
 
+  it('does not append an entry for a tool with no modeled actions', async () => {
+    const cwd = await projectWithConfig()
+    const { runCommand, runTool, appendEntry } = harness()
+    await runCommand('on', { cwd })
+    await runCommand('trace')
+
+    await runTool(
+      {
+        type: 'tool_call',
+        toolCallId: 'call_read',
+        toolName: 'read',
+        input: { path: 'notes.md' },
+      },
+      { cwd },
+    )
+
+    expect(appendEntry).not.toHaveBeenCalled()
+  })
+
   it('captures AI validator calls on the appended trace as agentCalls', async () => {
     const cwd = await projectWithConfig(ENFORCE_CONFIG)
     const { runCommand, runTool, appendEntry, complete } = harness()

@@ -5,14 +5,13 @@ import type {
   RawSessionEvent,
   TraceEntry,
 } from './types.js'
-import { createAgentCallCollector } from './agent-call-collector.js'
 import {
   findConfig,
   loadConfig,
   type Config,
   type RuleEntry,
 } from './config.js'
-import { evaluate } from './engine.js'
+import { evaluateActions } from './evaluate-actions.js'
 import { vendors, type Vendor, type VendorEntry } from './registry.js'
 import { buildRuleContext } from './rule-context.js'
 
@@ -52,26 +51,17 @@ async function dispatch(
   if (parsed.kind === 'invalid') {
     return respondParseFailed(entry, parsed.reason)
   }
-  // A payload can expand to several actions (e.g. a multi-file codex
-  // apply_patch). Evaluate each and short-circuit on the first block so
-  // no file in the batch escapes the rules. A fresh collector per action
-  // keeps AI-call attribution scoped to the action that made the call,
-  // rather than cross-crediting every action's trace entries.
-  const trace: TraceEntry[] = []
-  for (const action of parsed.actions) {
-    const collector = createAgentCallCollector(agent)
-    const ctx = buildRuleContext({
-      agent: collector.agent,
-      rawHistory: parsed.rawHistory,
-      toCanonical: entry.toCanonical,
-    })
-    const outcome = await evaluate(action, rules, ctx, collector.hooks)
-    trace.push(...collector.enrichTrace(outcome.trace))
-    if (outcome.decision.kind === 'block') {
-      return { response: respond(entry, outcome.decision), trace }
-    }
-  }
-  return { response: respond(entry, { kind: 'allow' }), trace }
+  const { decision, trace } = await evaluateActions(parsed.actions, {
+    rules,
+    agent,
+    contextFor: (wrapped) =>
+      buildRuleContext({
+        agent: wrapped,
+        rawHistory: parsed.rawHistory,
+        toCanonical: entry.toCanonical,
+      }),
+  })
+  return { response: respond(entry, decision), trace }
 }
 
 /**
