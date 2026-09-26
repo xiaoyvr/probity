@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest'
 
-import piExtension from './pi-extension.js'
+import piExtension from './pi-ext-probity.js'
 import type {
   PiContext,
   PiExtensionAPI,
