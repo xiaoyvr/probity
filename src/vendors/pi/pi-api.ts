@@ -76,7 +76,6 @@ export type PiCustomEntry<T = unknown> = {
 
 export type PiEntryRenderOptions = {
   expanded: boolean
-  outputPad?: number
 }
 
 /** The slice of the render theme Probity reads. */
