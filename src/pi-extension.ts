@@ -12,7 +12,8 @@ import type {
 } from './vendors/pi/pi-api.js'
 import { toActions } from './vendors/pi/tool-call.js'
 
-type State = { status: 'off' } | { status: 'on'; config: Config }
+type State =
+  { status: 'off' } | { status: 'on'; config: Config; trace: boolean }
 
 /**
  * pi extension entry point. Registers `/probity` and evaluates tool
@@ -25,7 +26,7 @@ export default function piExtension(pi: PiExtensionAPI): void {
   async function enable(ctx: PiContext): Promise<void> {
     try {
       const config = await loadConfig(findConfig(ctx.cwd))
-      state = { status: 'on', config }
+      state = { status: 'on', config, trace: false }
       notify(ctx, 'Probity: on')
     } catch (error) {
       state = { status: 'off' }
@@ -34,7 +35,7 @@ export default function piExtension(pi: PiExtensionAPI): void {
   }
 
   pi.registerCommand('probity', {
-    description: 'Probity guardrails. Usage: /probity on|off',
+    description: 'Probity guardrails. Usage: /probity on|off|trace',
     handler: async (args, ctx) => {
       const command = args.trim()
       if (command === 'on') {
@@ -42,6 +43,13 @@ export default function piExtension(pi: PiExtensionAPI): void {
       } else if (command === 'off') {
         state = { status: 'off' }
         notify(ctx, 'Probity: off')
+      } else if (command === 'trace') {
+        if (state.status !== 'on') {
+          notify(ctx, 'Probity: trace is available only while on', 'error')
+        } else {
+          state = { ...state, trace: !state.trace }
+          notify(ctx, `Probity: trace ${state.trace ? 'on' : 'off'}`)
+        }
       } else {
         notify(ctx, `Probity: ${state.status}`)
       }
