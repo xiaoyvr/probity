@@ -222,7 +222,18 @@ describe('pi extension /probity command', () => {
     await runCommand('on', { cwd })
     await runCommand('', { cwd })
 
-    expect(notify).toHaveBeenLastCalledWith('Probity: on', 'info')
+    expect(notify).toHaveBeenLastCalledWith('Probity: on · trace off', 'info')
+  })
+
+  it('reports tracing on in the bare status after toggling it on', async () => {
+    const cwd = await projectWithConfig()
+    const { notify, runCommand } = harness()
+
+    await runCommand('on', { cwd })
+    await runCommand('trace')
+    await runCommand('', { cwd })
+
+    expect(notify).toHaveBeenLastCalledWith('Probity: on · trace on', 'info')
   })
 
   it('stays off and reports the existing error when no config is found', async () => {

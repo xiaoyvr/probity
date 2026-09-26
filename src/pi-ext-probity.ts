@@ -52,7 +52,11 @@ export default function piExtension(pi: PiExtensionAPI): void {
           notify(ctx, `Probity: trace ${state.trace ? 'on' : 'off'}`)
         }
       } else {
-        notify(ctx, `Probity: ${state.status}`)
+        const status =
+          state.status === 'on'
+            ? `on · trace ${state.trace ? 'on' : 'off'}`
+            : 'off'
+        notify(ctx, `Probity: ${status}`)
       }
     },
   })
