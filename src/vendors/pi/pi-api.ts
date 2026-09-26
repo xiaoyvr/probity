@@ -7,6 +7,8 @@
 export type PiExtensionAPI = {
   registerCommand(name: string, options: PiCommandRegistration): void
   on(event: 'tool_call', handler: PiToolCallHandler): void
+  appendEntry(customType: string, data?: unknown): void
+  registerEntryRenderer(customType: string, renderer: PiEntryRenderer): void
 }
 
 export type PiCommandRegistration = {
@@ -61,3 +63,35 @@ export type PiToolCallContext = PiContext & {
   model: unknown
   modelRegistry: PiModelRegistry
 }
+
+/**
+ * A TUI-only transcript entry an extension appends via `appendEntry`.
+ * Custom entries do not participate in LLM context; the entry renderer
+ * registered for `customType` draws them.
+ */
+export type PiCustomEntry<T = unknown> = {
+  customType: string
+  data?: T
+}
+
+export type PiEntryRenderOptions = {
+  expanded: boolean
+  outputPad?: number
+}
+
+/** The slice of the render theme Probity reads. */
+export type PiTheme = {
+  fg(color: string, text: string): string
+}
+
+/** A minimal TUI component: rendered lines plus an invalidation hook. */
+export type PiComponent = {
+  render(width: number): string[]
+  invalidate(): void
+}
+
+export type PiEntryRenderer<T = unknown> = (
+  entry: PiCustomEntry<T>,
+  options: PiEntryRenderOptions,
+  theme: PiTheme,
+) => PiComponent | undefined

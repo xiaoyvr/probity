@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest'
 import piExtension from './pi-extension.js'
 import type {
   PiContext,
+  PiEntryRenderer,
   PiExtensionAPI,
   PiToolCallContext,
   PiToolCallEvent,
@@ -54,6 +55,9 @@ type ToolHandler = (
 function harness(options: { hasUI?: boolean } = {}) {
   let command: CommandHandler | undefined
   let tool: ToolHandler | undefined
+  const appendEntry = vi.fn<(customType: string, data?: unknown) => void>()
+  const registerEntryRenderer =
+    vi.fn<(customType: string, renderer: unknown) => void>()
   const pi: PiExtensionAPI = {
     registerCommand: (_name, config) => {
       command = config.handler
@@ -61,6 +65,8 @@ function harness(options: { hasUI?: boolean } = {}) {
     on: (_event, handler) => {
       tool = handler
     },
+    appendEntry,
+    registerEntryRenderer,
   }
   piExtension(pi)
 
@@ -81,6 +87,8 @@ function harness(options: { hasUI?: boolean } = {}) {
   return {
     notify,
     complete,
+    appendEntry,
+    registerEntryRenderer,
     runCommand: (args: string, overrides: Partial<PiContext> = {}) =>
       Promise.resolve(command?.(args, context(overrides))),
     runTool: (
@@ -176,6 +184,8 @@ describe('pi extension /probity command', () => {
         name = registeredName
       },
       on: () => {},
+      appendEntry: () => {},
+      registerEntryRenderer: () => {},
     })
 
     expect(name).toBe('probity')
@@ -281,6 +291,123 @@ describe('pi extension /probity command', () => {
       'Probity: trace is available only while on',
       'error',
     )
+  })
+})
+
+type AppendedTrace = {
+  tool: string
+  toolCallId: string
+  decision: { kind: string }
+  trace: {
+    kind: string
+    rule?: string
+    result?: { kind: string }
+    agentCalls?: { durationMs: number; verdict: { kind: string } }[]
+  }[]
+}
+
+describe('pi extension tracing', () => {
+  it('appends the evaluation trace as an entry when tracing is on', async () => {
+    const cwd = await projectWithConfig()
+    const { runCommand, runTool, appendEntry } = harness()
+    await runCommand('on', { cwd })
+    await runCommand('trace')
+
+    await runTool(writeEvent('TODO: later'), { cwd })
+
+    expect(appendEntry).toHaveBeenCalledTimes(1)
+    const [customType, raw] = appendEntry.mock.calls[0] ?? []
+    expect(customType).toBe('probity-trace')
+    const data = raw as AppendedTrace
+    expect(data.tool).toBe('write')
+    expect(data.toolCallId).toBe('call_1')
+    expect(data.decision).toEqual({ kind: 'block', reason: 'No TODOs' })
+    expect(data.trace).toHaveLength(1)
+    expect(data.trace[0]).toMatchObject({
+      kind: 'rule-evaluated',
+      rule: 'forbidContentPattern',
+      result: { kind: 'violation', reason: 'No TODOs' },
+    })
+  })
+
+  it('does not append an entry when tracing is off', async () => {
+    const cwd = await projectWithConfig()
+    const { runCommand, runTool, appendEntry } = harness()
+    await runCommand('on', { cwd })
+
+    await runTool(writeEvent('TODO: later'), { cwd })
+
+    expect(appendEntry).not.toHaveBeenCalled()
+  })
+
+  it('does not append an entry while probity is off', async () => {
+    const cwd = await projectWithConfig()
+    const { runTool, appendEntry } = harness()
+
+    await runTool(writeEvent('TODO: later'), { cwd })
+
+    expect(appendEntry).not.toHaveBeenCalled()
+  })
+
+  it('captures AI validator calls on the appended trace as agentCalls', async () => {
+    const cwd = await projectWithConfig(ENFORCE_CONFIG)
+    const { runCommand, runTool, appendEntry, complete } = harness()
+    await runCommand('on', { cwd })
+    await runCommand('trace')
+    complete.mockResolvedValue({
+      content: [{ type: 'text', text: '{"kind":"pass","reason":""}' }],
+    })
+
+    await runTool(writeEvent('export const x = 1'), { cwd })
+
+    const data = appendEntry.mock.calls[0]?.[1] as AppendedTrace
+    const entry = data.trace.find(
+      (t) => t.kind === 'rule-evaluated' && t.rule === 'enforceTdd',
+    )
+    expect(entry?.agentCalls).toHaveLength(1)
+    expect(entry?.agentCalls?.[0]?.verdict).toMatchObject({ kind: 'pass' })
+    expect(entry?.agentCalls?.[0]?.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('registers a renderer for probity-trace entries', () => {
+    const { registerEntryRenderer } = harness()
+
+    expect(registerEntryRenderer).toHaveBeenCalledWith(
+      'probity-trace',
+      expect.any(Function),
+    )
+  })
+
+  it('renders a summary of the appended trace', () => {
+    const { registerEntryRenderer } = harness()
+    const renderer = registerEntryRenderer.mock.calls[0]?.[1] as PiEntryRenderer
+    const component = renderer(
+      {
+        customType: 'probity-trace',
+        data: {
+          tool: 'write',
+          toolCallId: 'call_1',
+          decision: { kind: 'block', reason: 'No TODOs' },
+          trace: [
+            {
+              kind: 'rule-evaluated',
+              rule: 'forbidContentPattern',
+              result: { kind: 'violation', reason: 'No TODOs' },
+              durationMs: 3,
+            },
+          ],
+        },
+      },
+      { expanded: false },
+      { fg: (_color, text) => text },
+    )
+
+    const lines = component?.render(120) ?? []
+    const text = lines.join('\n')
+    expect(text).toContain('write')
+    expect(text).toContain('block')
+    expect(text).toContain('forbidContentPattern')
+    expect(text).toContain('violation')
   })
 })
 
