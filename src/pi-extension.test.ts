@@ -236,6 +236,52 @@ describe('pi extension /probity command', () => {
 
     expect(notify).not.toHaveBeenCalled()
   })
+
+  it('toggles tracing with /probity trace, on then off', async () => {
+    const cwd = await projectWithConfig()
+    const { notify, runCommand } = harness()
+    await runCommand('on', { cwd })
+
+    await runCommand('trace')
+    expect(notify).toHaveBeenLastCalledWith('Probity: trace on', 'info')
+
+    await runCommand('trace')
+    expect(notify).toHaveBeenLastCalledWith('Probity: trace off', 'info')
+  })
+
+  it('starts with tracing off after enabling', async () => {
+    const cwd = await projectWithConfig()
+    const { notify, runCommand } = harness()
+    await runCommand('on', { cwd })
+
+    await runCommand('trace')
+
+    expect(notify).toHaveBeenLastCalledWith('Probity: trace on', 'info')
+  })
+
+  it('resets tracing to off when re-enabled', async () => {
+    const cwd = await projectWithConfig()
+    const { notify, runCommand } = harness()
+    await runCommand('on', { cwd })
+    await runCommand('trace')
+    await runCommand('off')
+    await runCommand('on', { cwd })
+
+    await runCommand('trace')
+
+    expect(notify).toHaveBeenLastCalledWith('Probity: trace on', 'info')
+  })
+
+  it('refuses /probity trace while off', async () => {
+    const { notify, runCommand } = harness()
+
+    await runCommand('trace')
+
+    expect(notify).toHaveBeenCalledWith(
+      'Probity: trace is available only while on',
+      'error',
+    )
+  })
 })
 
 describe('pi extension tool_call', () => {
