@@ -1,6 +1,5 @@
-import { createAgentCallCollector } from './agent-call-collector.js'
 import { findConfig, loadConfig, type Config } from './config.js'
-import { evaluate } from './engine.js'
+import { evaluateActions } from './evaluate-actions.js'
 import { buildRuleContext } from './rule-context.js'
 import type { Decision, TraceEntry } from './types.js'
 import { piAgent } from './vendors/pi/agent.js'
@@ -75,29 +74,23 @@ export default function piExtension(pi: PiExtensionAPI): void {
     const { config, trace: tracing } = state
     const agent = config.ai ?? piAgent(ctx)
     try {
-      const trace: TraceEntry[] = []
-      let decision: Decision = { kind: 'allow' }
-      for (const action of await toActions(event, ctx.cwd)) {
-        const collector = createAgentCallCollector(agent)
-        const ruleContext = buildRuleContext({
-          agent: collector.agent,
-          rawHistory: () =>
-            Promise.resolve(
-              rawEventsFromEntries(ctx.sessionManager.getBranch()),
-            ),
-          toCanonical,
-        })
-        const outcome = await evaluate(
-          action,
-          config.rules,
-          ruleContext,
-          collector.hooks,
-        )
-        trace.push(...collector.enrichTrace(outcome.trace))
-        decision = outcome.decision
-        if (decision.kind === 'block') break
-      }
-      if (tracing) {
+      const { decision, trace } = await evaluateActions(
+        await toActions(event, ctx.cwd),
+        {
+          rules: config.rules,
+          agent,
+          contextFor: (wrapped) =>
+            buildRuleContext({
+              agent: wrapped,
+              rawHistory: () =>
+                Promise.resolve(
+                  rawEventsFromEntries(ctx.sessionManager.getBranch()),
+                ),
+              toCanonical,
+            }),
+        },
+      )
+      if (tracing && trace.length > 0) {
         pi.appendEntry('probity-trace', {
           tool: event.toolName,
           toolCallId: event.toolCallId,
