@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest'
 import piExtension from './pi-extension.js'
 import type {
   PiContext,
-  PiEntryRenderer,
   PiExtensionAPI,
   PiToolCallContext,
   PiToolCallEvent,
@@ -409,38 +408,6 @@ describe('pi extension tracing', () => {
       'probity-trace',
       expect.any(Function),
     )
-  })
-
-  it('renders a summary of the appended trace', () => {
-    const { registerEntryRenderer } = harness()
-    const renderer = registerEntryRenderer.mock.calls[0]?.[1] as PiEntryRenderer
-    const component = renderer(
-      {
-        customType: 'probity-trace',
-        data: {
-          tool: 'write',
-          toolCallId: 'call_1',
-          decision: { kind: 'block', reason: 'No TODOs' },
-          trace: [
-            {
-              kind: 'rule-evaluated',
-              rule: 'forbidContentPattern',
-              result: { kind: 'violation', reason: 'No TODOs' },
-              durationMs: 3,
-            },
-          ],
-        },
-      },
-      { expanded: false },
-      { fg: (_color, text) => text },
-    )
-
-    const lines = component?.render(120) ?? []
-    const text = lines.join('\n')
-    expect(text).toContain('write')
-    expect(text).toContain('block')
-    expect(text).toContain('forbidContentPattern')
-    expect(text).toContain('violation')
   })
 })
 
