@@ -91,18 +91,31 @@ export default function piExtension(pi: PiExtensionAPI): void {
         },
       )
       if (tracing && trace.length > 0) {
-        pi.appendEntry('probity-trace', {
+        appendTrace(pi, {
           tool: event.toolName,
           toolCallId: event.toolCallId,
           decision,
           trace,
-        } satisfies TraceRecord)
+        })
       }
       return toResult(decision)
     } catch (error) {
       return { block: true, reason: `Probity: ${message(error)}` }
     }
   })
+}
+
+/**
+ * Append a trace entry best-effort: tracing is observability, so a
+ * failure to record it must not change the decision returned to the
+ * agent.
+ */
+function appendTrace(pi: PiExtensionAPI, record: TraceRecord): void {
+  try {
+    pi.appendEntry('probity-trace', record)
+  } catch {
+    // Ignore: a tracing failure must not affect enforcement.
+  }
 }
 
 /**

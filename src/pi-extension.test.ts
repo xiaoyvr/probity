@@ -349,6 +349,20 @@ describe('pi extension tracing', () => {
     expect(appendEntry).not.toHaveBeenCalled()
   })
 
+  it('does not block the tool call when appending the trace fails', async () => {
+    const cwd = await projectWithConfig()
+    const { runCommand, runTool, appendEntry } = harness()
+    await runCommand('on', { cwd })
+    await runCommand('trace')
+    appendEntry.mockImplementation(() => {
+      throw new Error('session write failed')
+    })
+
+    const result = await runTool(writeEvent('all clean'), { cwd })
+
+    expect(result).toBeUndefined()
+  })
+
   it('does not append an entry for a tool with no modeled actions', async () => {
     const cwd = await projectWithConfig()
     const { runCommand, runTool, appendEntry } = harness()
